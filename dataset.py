@@ -73,7 +73,7 @@ class Dataset(object):
 
 
 if __name__ == '__main__':
-    d = Dataset('/groups/price/yakir/data/datasets/1000G3.wim5u/1000G3.wim5u.')
+    d = Dataset('/groups/price/yakir/data/datasets/1000G3.wim5unm/1000G3.wim5unm.')
     print(d.path)
     print(d.bfile(22))
     print(d.frq_file(22))

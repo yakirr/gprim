@@ -72,7 +72,7 @@ class Annotation(object):
 
 
 if __name__ == '__main__':
-    a = Annotation('/groups/price/yakir/data/annot/1000G3.wim5u/mock/')
+    a = Annotation('/groups/price/yakir/data/simannot/1000G3.wim5unm/mock/')
     print(a.names(22))
     print(a.sannot_df(22))
     print(a.sqnorms(22))
