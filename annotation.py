@@ -2,19 +2,22 @@ from __future__ import print_function, division
 import os
 import numpy as np
 import pandas as pd
-from pyutils import memo
+from pyutils import memo, fs
 
 class Annotation(object):
     def __init__(self, stem_chr, signed=True):
         self.stem_chr = stem_chr
         self.signed = signed
 
-    def filestem(self, chrnum=''):
-        return '{}{}'.format(self.stem_chr, chrnum)
+    def filestem(self, chrnum='', mkdir=False):
+        fname = '{}{}'.format(self.stem_chr, chrnum)
+        if mkdir:
+            fs.makedir_for_file(fname)
+        return fname
     def annot_filename(self, chrnum):
         return self.filestem(chrnum) + '.annot.gz'
-    def sannot_filename(self, chrnum):
-        return self.filestem(chrnum) + '.sannot.gz'
+    def sannot_filename(self, chrnum, mkdir=False):
+        return self.filestem(chrnum, mkdir) + '.sannot.gz'
     def sqnorm_filename(self, chrnum):
         return self.filestem(chrnum) + '.sqnorm'
     def size_filename(self, chrnum):
