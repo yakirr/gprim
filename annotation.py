@@ -17,7 +17,8 @@ STRAND_AMBIGUOUS = {''.join(x): x[0] == COMPLEMENT[x[1]]
 # SNPS we want to keep (pairs of alleles)
 VALID_SNPS = {x for x in map(lambda y: ''.join(y), itertools.product(BASES, BASES))
         if x[0] != x[1] and not STRAND_AMBIGUOUS[x]}
-# T iff SNP 1 has the same alleles as SNP 2 (allowing for strand or ref allele flip).
+# T iff SNP 1 has the same alleles as SNP 2 (allowing for strand or ref allele flip)
+# and neither is invalid.
 MATCH_ALLELES = {
         x for x in map(lambda y: ''.join(y), itertools.product(VALID_SNPS, VALID_SNPS))
         # strand and ref match
@@ -28,52 +29,78 @@ MATCH_ALLELES = {
         ((x[0] == x[3]) and (x[1] == x[2])) or
         # ref flip, strand flip
         ((x[0] == COMPLEMENT[x[3]]) and (x[1] == COMPLEMENT[x[2]]))}
-# T iff SNP 1 has the same alleles as SNP 2 w/ ref allele flip.
-FLIP_ALLELES = {''.join(x):
+# T iff SNP 1 has the same alleles as SNP 2 w/ ref allele flip and neither is invalid
+FLIP_ALLELES = {x for x in MATCH_ALLELES
         # ref flip, strand match
-        ((x[0] == x[3]) and (x[1] == x[2])) or
+        if ((x[0] == x[3]) and (x[1] == x[2])) or
         # ref flip, strand flip
-        ((x[0] == COMPLEMENT[x[3]]) and (x[1] == COMPLEMENT[x[2]]))
-        for x in MATCH_ALLELES}
+        ((x[0] == COMPLEMENT[x[3]]) and (x[1] == COMPLEMENT[x[2]]))}
 
 # Checks if SNP columns are equal. If so, saves time by using concat instead of merge.
-def smart_merge(x, y, how='inner'):
-    if len(x) == len(y) and (x.SNP == y.SNP).all():
-        x = x.reset_index(drop=True)
-        y = y.reset_index(drop=True).drop('SNP', axis=1)
-        out = pd.concat([x, y], axis=1)
+# y can be either a single df or a list of dfs
+# if x is a list, then y is unnecessary
+def smart_merge(x, y=[], how='inner', fail_if_nonmatching=False, drop_from_y=[]):
+    # make y into a list if it's just a single df
+    if type(y) == pd.DataFrame:
+        y = [y]
+    # if x is a list, pass the rest onto y
+    if type(x) != pd.DataFrame: # assume x is a list
+        y = x[1:] + y
+        x = x[0]
+
+    # drop uninteresting columns from y and check that snps match
+    matching = True
+    for d in y:
+        d.drop(drop_from_y, axis=1, inplace=True)
+        if len(x) != len(d) or (x.SNP != d.SNP).any():
+            matching = False
+
+    x = x.reset_index(drop=True)
+    if matching:
+        return pd.concat([x]+[d.reset_index(drop=True).drop('SNP', axis=1) for d in y],
+                axis=1)
     else:
-        out = pd.merge(x, y, how=how, on='SNP')
-    return out
+        if fail_if_nonmatching:
+            print('smart_merge sees that the dataframs dont have same snps in same order')
+            exit()
+        else:
+            for d in y:
+                x = pd.merge(x,
+                        d.reset_index(drop=True), how=how, on='SNP')
+        return x
 
 # keeps only snps in ref, flips alleles in df to match those in ref, and sets value at
 # non-matching snps to a missing_val (0 by default). 
-def reconciled_to(ref, df, colnames, signed=True, missing_val=0):
-    result = smart_merge(ref[['CHR','BP','SNP','CM','A1','A2']],
-        df[['SNP','A1','A2']+list(colnames)].rename(columns={'A1':'A1_df','A2':'A2_df'}),
+# ref must contain: SNP, A1, A2
+# df must contain: SNP, A1, A2, and colnames
+def reconciled_to(ref, df, colnames, othercolnames=[], signed=True, missing_val=0):
+    result = smart_merge(
+        ref,
+        df[['SNP','A1','A2']+list(colnames)+othercolnames].rename(
+            columns={'A1':'A1_df','A2':'A2_df'}),
         how='left')
+    print(len(result), 'snps after merging')
 
     # snps in ref but not in df
     missing = result.A1_df.isnull()
-    result.loc[missing,'A1_df'] = result.loc[missing,'A1']
-    result.loc[missing,'A2_df'] = result.loc[missing,'A2']
+    print('of', len(result), 'snps in merge,', missing.sum(), 'were missing in df')
     result.loc[missing,colnames] = missing_val
+    result.loc[missing,'A1_df'] = result.loc[missing,'A2_df'] = '-'
 
-    # assign to zero SNPs in ref whose alleles don't match df
+    # snps in both, but either invalid or not matching
     a1234 = (result.A1+result.A2+result.A1_df+result.A2_df).apply(lambda y: y.upper())
-    match = a1234.apply(lambda y: y in MATCH_ALLELES)
-    n_mismatch = (~match).sum()
-    print('of', len(match), 'snps,', n_mismatch, 'snps do not have same alleles,')
-    result.loc[~match,colnames] = missing_val
-    result.loc[~match,'A1_df'] = result.loc[~match,'A1']
-    result.loc[~match,'A2_df'] = result.loc[~match,'A2']
+    match = ~missing & a1234.apply(lambda y: y in MATCH_ALLELES)
+    n_mismatch = (~missing & ~match).sum()
+    print('of', (~missing).sum(), 'remaining snps,', n_mismatch,
+            'are a) present in ref and df, b) do not have matching sets of alleles '+\
+                    'that are both valid,')
+    result.loc[~missing & ~match,colnames] = missing_val
 
     if signed:
-        a1234 = (result.A1+result.A2+result.A1_df+result.A2_df).apply(lambda y: y.upper())
-        a1234[~match] = list(MATCH_ALLELES)[0] # in case ref has strand-ambiguous alleles
-        flip = a1234.apply(lambda y: FLIP_ALLELES[y])
+        flip = match & a1234.apply(lambda y: y in FLIP_ALLELES)
         n_flip = flip.sum()
-        print('of', len(match), 'snps,', n_flip, 'snps need flipping')
+        print('of the remaining', match.sum(), 'snps,', n_flip, 'snps need flipping',
+            'and', (match & ~flip).sum(), 'snps matched and did not need flipping')
         result.loc[flip,colnames] *= -1
 
     return result.drop(['A1_df', 'A2_df'], axis=1)
