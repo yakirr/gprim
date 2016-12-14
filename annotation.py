@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-import os
+import os, gzip
 import numpy as np
 import pandas as pd
 import itertools
@@ -39,7 +39,7 @@ FLIP_ALLELES = {x for x in MATCH_ALLELES
 # Checks if SNP columns are equal. If so, saves time by using concat instead of merge.
 # y can be either a single df or a list of dfs
 # if x is a list, then y is unnecessary
-def smart_merge(x, y=[], how='inner', fail_if_nonmatching=False, drop_from_y=[]):
+def smart_merge(x, y=[], how='inner', fail_if_nonmatching=False, drop_from_y=[], key='SNP'):
     # make y into a list if it's just a single df
     if type(y) == pd.DataFrame:
         y = [y]
@@ -52,12 +52,12 @@ def smart_merge(x, y=[], how='inner', fail_if_nonmatching=False, drop_from_y=[])
     matching = True
     for d in y:
         d.drop(drop_from_y, axis=1, inplace=True)
-        if len(x) != len(d) or (x.SNP != d.SNP).any():
+        if len(x) != len(d) or (x[key] != d[key]).any():
             matching = False
 
     x = x.reset_index(drop=True)
     if matching:
-        return pd.concat([x]+[d.reset_index(drop=True).drop('SNP', axis=1) for d in y],
+        return pd.concat([x]+[d.reset_index(drop=True).drop(key, axis=1) for d in y],
                 axis=1)
     else:
         if fail_if_nonmatching:
@@ -66,20 +66,24 @@ def smart_merge(x, y=[], how='inner', fail_if_nonmatching=False, drop_from_y=[])
         else:
             for d in y:
                 x = pd.merge(x,
-                        d.reset_index(drop=True), how=how, on='SNP')
+                        d.reset_index(drop=True), how=how, on=key)
         return x
 
 # keeps only snps in ref, flips alleles in df to match those in ref, and sets value at
 # non-matching snps to a missing_val (0 by default). 
 # ref must contain: SNP, A1, A2
 # df must contain: SNP, A1, A2, and colnames
-def reconciled_to(ref, df, colnames, othercolnames=[], signed=True, missing_val=0):
+def reconciled_to(ref, df, colnames, othercolnames=[], signed=True, missing_val=0, key='SNP'):
     result = smart_merge(
         ref,
-        df[['SNP','A1','A2']+list(colnames)+othercolnames].rename(
+        df[[key,'A1','A2']+list(colnames)+othercolnames].rename(
             columns={'A1':'A1_df','A2':'A2_df'}),
-        how='left')
+        how='left',
+        key=key)
     print(len(result), 'snps after merging')
+    if len(result) != len(ref):
+        print('WARNING: merged data frame is not the same length as reference data frame')
+        print('   check for duplicate snps in one of the two dataframes')
 
     # snps in ref but not in df
     missing = result.A1_df.isnull()
@@ -152,9 +156,15 @@ class Annotation(object):
     @memo.memoized
     def names(self, chrnum):
         if os.path.exists(self.annot_filename(chrnum)):
-            return self.annot_df(chrnum).columns.values[4:]
+            fname = self.annot_filename(chrnum)
+            with gzip.open(fname, 'r') as f:
+                line = f.readline().strip().split('\t')
+            return line[4:]
         else: # assuming sannot exists
-            return self.sannot_df(chrnum).columns.values[6:]
+            fname = self.sannot_filename(chrnum)
+            with gzip.open(fname, 'r') as f:
+                line = f.readline().strip().split('\t')
+            return line[6:]
     @classmethod
     def names_observed(cls, names):
         return [n + '.O' for n in names]
