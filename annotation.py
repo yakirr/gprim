@@ -130,22 +130,20 @@ class Annotation(object):
         return self.filestem(chrnum) + '.M'
     def ldscores_filename(self, chrnum):
         return self.filestem(chrnum) + '.l2.ldscore.gz'
-    def conv_filename(self, chrnum, full=False):
-        if not full:
-            return self.filestem(chrnum) + '.conv.gz'
-        else:
-            return self.filestem(chrnum) + '.fullconv.gz'
-    @classmethod
-    def isfullconv(cls, filename):
-        return filename.endswith('.fullconv.gz')
+    def RV_filename(self, chrnum, full=False):
+        return self.filestem(chrnum) + '.RV.gz'
 
     @memo.memoized
     def annot_df(self, chrnum):
         return pd.read_csv(self.annot_filename(chrnum),
                 compression='gzip', header=0, sep='\t')
+    @memo.memoized
     def sannot_df(self, chrnum):
         return pd.read_csv(self.sannot_filename(chrnum),
                 compression='gzip', header=0, sep='\t')
+    @memo.memoized
+    def RV_df(self, chrnum):
+        return pd.read_csv(self.RV_filename(chrnum), sep='\t')
     @memo.memoized
     def sqnorms(self, chrnum):
         return pd.read_csv(self.sqnorm_filename(chrnum), names=self.names(chrnum), sep='\t')
@@ -154,22 +152,18 @@ class Annotation(object):
         return pd.read_csv(self.size_filename(chrnum), names=self.names(chrnum), sep='\t')
 
     @memo.memoized
-    def names(self, chrnum):
-        if os.path.exists(self.annot_filename(chrnum)):
-            fname = self.annot_filename(chrnum)
-            with gzip.open(fname, 'r') as f:
-                line = f.readline().strip().split('\t')
-            return line[4:]
-        else: # assuming sannot exists
+    def names(self, chrnum, RV=False):
+        if RV:
+            fname = self.RV_filename(chrnum)
+        else:
             fname = self.sannot_filename(chrnum)
-            with gzip.open(fname, 'r') as f:
-                line = f.readline().strip().split('\t')
-            return line[6:]
+        temp = pd.read_csv(fname, nrows=1, delim_whitespace=True)
+        return [x for x in temp.columns.values if not(x in ['SNP','CHR','CM','BP','A1','A2'])]
     @classmethod
     def names_observed(cls, names):
         return [n + '.O' for n in names]
     @classmethod
-    def names_conv(cls, names, observed=True):
+    def RV_names_conv(cls, names, observed=True):
         O = ('.O' if observed else '')
         return [n + O + '.conv' for n in names]
 

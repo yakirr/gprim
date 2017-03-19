@@ -1,9 +1,13 @@
 from __future__ import print_function, division
 import os
+import numpy as np
 import pandas as pd
 from pysnptools.snpreader import Bed
 from pybedtools import BedTool
 from pyutils import memo
+import pyutils.iter as pyit
+import time
+
 
 class Dataset(object):
     def __init__(self, bfile_chr, assembly='hg19'):
@@ -71,6 +75,51 @@ class Dataset(object):
         return BedTool('\n'.join(ucscbed), from_string=True).saveas(
                 self.ucscbedfile(chrnum))
 
+    # return ldblock info, standardized X, snp metadata
+    def block_data(self, ldblocks, c, meta=None, chunksize=15, genos=True, verbose=2):
+        # restrict to ld blocks in this chr and process them in chunks
+        chr_blocks = ldblocks[ldblocks.chr=='chr'+str(c)]
+        # get metadata about snps
+        snps = self.bim_df(c)
+
+        t0 = time.time()
+        for block_nums in pyit.grouper(chunksize, range(len(chr_blocks))):
+            # get ld blocks in this chunk, and indices of the snps that start and end them
+            chunk_blocks = chr_blocks.iloc[block_nums]
+            blockstarts_ind = np.searchsorted(snps.BP.values, chunk_blocks.start.values)
+            blockends_ind = np.searchsorted(snps.BP.values, chunk_blocks.end.values)
+            if verbose >= 1:
+                print('{} : chr {} snps {} - {}'.format(
+                    time.time()-t0, c, blockstarts_ind[0], blockends_ind[-1]))
+
+            # read in refpanel for this chunk, and find the relevant annotated snps
+            if genos:
+                Xchunk = self.stdX(c, (blockstarts_ind[0], blockends_ind[-1]))
+                print('read in chunk')
+            else:
+                Xchunk = None
+
+            if meta is not None:
+                metachunk = meta.iloc[blockstarts_ind[0]:blockends_ind[-1]]
+
+            # calibrate ld block starts and ends with respect to the start of this chunk
+            blockends_ind -= blockstarts_ind[0]
+            blockstarts_ind -= blockstarts_ind[0]
+            for i, start_ind, end_ind in zip(
+                    chunk_blocks.index, blockstarts_ind, blockends_ind):
+                if verbose >= 2:
+                    print(time.time()-t0, ': processing ld block',
+                            i, ',', end_ind-start_ind, 'snps')
+                if genos:
+                    X = Xchunk[:, start_ind:end_ind]
+                else:
+                    X = None
+                if meta is not None:
+                    metablock = metachunk.iloc[start_ind:end_ind]
+                else:
+                    metablock = None
+                yield (chr_blocks.loc[i], X, metablock,
+                    metachunk.iloc[start_ind:end_ind].index)
 
 if __name__ == '__main__':
     d = Dataset('/groups/price/yakir/data/datasets/1000G3.wim5unm/1000G3.wim5unm.')
