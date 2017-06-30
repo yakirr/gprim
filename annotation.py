@@ -124,15 +124,19 @@ class Annotation(object):
         return self.filestem(chrnum) + '.annot.gz'
     def sannot_filename(self, chrnum, mkdir=False):
         return self.filestem(chrnum, mkdir) + '.sannot.gz'
-    def sqnorm_filename(self, chrnum):
-        return self.filestem(chrnum) + '.sqnorm'
-    def size_filename(self, chrnum):
-        return self.filestem(chrnum) + '.M'
+    def info_filename(self, chrnum):
+        return self.filestem(chrnum) + '.info'
     def ldscores_filename(self, chrnum):
         return self.filestem(chrnum) + '.l2.ldscore.gz'
     def RV_filename(self, chrnum, full=False):
         return self.filestem(chrnum) + '.RV.gz'
 
+    def info_df(self, chrs=range(1,23)):
+        if type(chrs) == int:
+            return pd.read_csv(self.info_filename(chrs), sep='\t', index_col=0)
+        else:
+            return reduce(lambda x,y:x+y,
+                    [self.info_df(c) for c in chrs])
     @memo.memoized
     def annot_df(self, chrnum):
         return pd.read_csv(self.annot_filename(chrnum),
@@ -144,12 +148,6 @@ class Annotation(object):
     @memo.memoized
     def RV_df(self, chrnum):
         return pd.read_csv(self.RV_filename(chrnum), sep='\t')
-    @memo.memoized
-    def sqnorms(self, chrnum):
-        return pd.read_csv(self.sqnorm_filename(chrnum), names=self.names(chrnum), sep='\t')
-    @memo.memoized
-    def sizes(self, chrnum):
-        return pd.read_csv(self.size_filename(chrnum), names=self.names(chrnum), sep='\t')
 
     @memo.memoized
     def names(self, chrnum, RV=False):
@@ -159,33 +157,19 @@ class Annotation(object):
             fname = self.sannot_filename(chrnum)
         temp = pd.read_csv(fname, nrows=1, delim_whitespace=True)
         return [x for x in temp.columns.values if not(x in ['SNP','CHR','CM','BP','A1','A2'])]
-    @classmethod
-    def names_observed(cls, names):
-        return [n + '.O' for n in names]
-    @classmethod
-    def RV_names_conv(cls, names, observed=True):
-        O = ('.O' if observed else '')
-        return [n + O + '.conv' for n in names]
 
-    @memo.memoized
-    def num_snps(self, chrnum):
-        if os.path.exists(self.annot_filename(chrnum)):
-            return len(self.annot_df(chrnum))
-        else: # assuming sannot exists
-            return len(self.sannot_df(chrnum))
-
-    def total_sqnorms(self, chromosomes):
-        return sum([self.sqnorms(c) for c in chromosomes])
-    def total_sizes(self, chromosomes):
-        return sum([self.sizes(c) for c in chromosomes])
+    def total_sqnorms(self, chrs):
+        return self.info_df(chrs)['sqnorm'].values
+    def total_sizes(self, chrs):
+        return self.info_df(chrs)['supp'].values
 
 
 if __name__ == '__main__':
     a = Annotation('/groups/price/yakir/data/simannot/1000G3.wim5unm/mock/')
     print(a.names(22))
     print(a.sannot_df(22))
-    print(a.sqnorms(22))
-    print(a.sizes(22))
+    print(a.total_sqnorms(22))
+    print(a.total_sizes(22))
     print(a.total_sqnorms([1,22]))
     print(a.total_sizes([1,22]))
 
