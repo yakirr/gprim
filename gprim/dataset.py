@@ -4,11 +4,12 @@ import numpy as np
 import pandas as pd
 from pysnptools.snpreader import Bed
 from pybedtools import BedTool
-from pyutils import memo
-import pyutils.iter as pyit
+from ypy import memo
+import ypy.iter as pyit
 import time
 
 
+# Wrapper class for plink-formatted genotype data sets
 class Dataset(object):
     def __init__(self, bfile_chr, assembly='hg19'):
         self.bfile_chr=bfile_chr
@@ -121,6 +122,8 @@ class Dataset(object):
                 yield (chr_blocks.loc[i], X, metablock,
                     metachunk.iloc[start_ind:end_ind].index)
 
+
+# basic tests
 if __name__ == '__main__':
     d = Dataset('/groups/price/yakir/data/datasets/1000G3.wim5unm/1000G3.wim5unm.')
     print(d.path)

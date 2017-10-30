@@ -3,10 +3,10 @@ import os, gzip
 import numpy as np
 import pandas as pd
 import itertools
-from pyutils import memo, fs
+from ypy import memo, fs
 
 
-# complementary bases
+# complementary bases (code borrowed liberally from ldsc repo)
 COMPLEMENT = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
 # bases
 BASES = COMPLEMENT.keys()
@@ -36,7 +36,7 @@ FLIP_ALLELES = {x for x in MATCH_ALLELES
         # ref flip, strand flip
         ((x[0] == COMPLEMENT[x[3]]) and (x[1] == COMPLEMENT[x[2]]))}
 
-# Checks if SNP columns are equal. If so, saves time by using concat instead of merge.
+# Checks if SNP columns are equal. If so, save time by using concat instead of merge.
 # y can be either a single df or a list of dfs
 # if x is a list, then y is unnecessary
 def smart_merge(x, y=[], how='inner', fail_if_nonmatching=False, drop_from_y=[], key='SNP'):
@@ -110,6 +110,7 @@ def reconciled_to(ref, df, colnames, othercolnames=[], signed=True, missing_val=
     return result.drop(['A1_df', 'A2_df'], axis=1)
 
 
+# Wrapper class for the annotation files used by ldsc and sldp
 class Annotation(object):
     def __init__(self, stem_chr, signed=True):
         self.stem_chr = stem_chr
@@ -149,7 +150,6 @@ class Annotation(object):
     def RV_df(self, chrnum):
         return pd.read_csv(self.RV_filename(chrnum), sep='\t')
 
-    @memo.memoized
     def names(self, chrnum, RV=False):
         if RV:
             fname = self.RV_filename(chrnum)
@@ -164,6 +164,7 @@ class Annotation(object):
         return self.info_df(chrs)['supp'].values
 
 
+# basic testing
 if __name__ == '__main__':
     a = Annotation('/groups/price/yakir/data/simannot/1000G3.wim5unm/mock/')
     print(a.names(22))
