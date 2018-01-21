@@ -36,6 +36,7 @@ FLIP_ALLELES = {x for x in MATCH_ALLELES
         # ref flip, strand flip
         ((x[0] == COMPLEMENT[x[3]]) and (x[1] == COMPLEMENT[x[2]]))}
 
+
 # Checks if SNP columns are equal. If so, save time by using concat instead of merge.
 # y can be either a single df or a list of dfs
 # if x is a list, then y is unnecessary
@@ -109,6 +110,18 @@ def reconciled_to(ref, df, colnames, othercolnames=[], signed=True, missing_val=
 
     return result.drop(['A1_df', 'A2_df'], axis=1)
 
+# intersects bed file with a set of SNPs
+# bed - a BedTool containing a set of genomic intervals
+# bim_df - a dataframe representing a plink bim file, potentially with extra columns
+# will return the rows of bim_df corresponding to snps lying inside bed
+def bed_to_snps(bed, bim_df):
+    from pybedtools import BedTool
+    iter_bim = [['chr'+str(x1), x2, x2+1] for (x1, x2) in np.array(bim_df[['CHR', 'BP']])]
+    bimbed = BedTool(iter_bim)
+    int_bed = bimbed.intersect(bed)
+    bp = [x.start for x in int_bed]
+    df_int = pd.DataFrame({'BP': bp})
+    return pd.merge(bim_df, df_int, how='inner', on='BP')
 
 # Wrapper class for the annotation files used by ldsc and sldp
 class Annotation(object):
@@ -140,12 +153,14 @@ class Annotation(object):
                     [self.info_df(c) for c in chrs])
     @memo.memoized
     def annot_df(self, chrnum):
-        return pd.read_csv(self.annot_filename(chrnum),
+        df = pd.read_csv(self.annot_filename(chrnum),
                 compression='gzip', header=0, sep='\t')
+        return df.astype(dtype={n:float for n in self.names(chrnum)})
     @memo.memoized
     def sannot_df(self, chrnum):
-        return pd.read_csv(self.sannot_filename(chrnum),
+        df = pd.read_csv(self.sannot_filename(chrnum),
                 compression='gzip', header=0, sep='\t')
+        return df.astype(dtype={n:float for n in self.names(chrnum)})
     @memo.memoized
     def RV_df(self, chrnum):
         return pd.read_csv(self.RV_filename(chrnum), sep='\t')
