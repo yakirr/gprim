@@ -101,6 +101,15 @@ def reconciled_to(ref, df, colnames, othercolnames=[], signed=True, missing_val=
                     'that are both valid,')
     result.loc[~missing & ~match,colnames] = missing_val
 
+    # filter out SNPs with two sets of alleles in df by removing the version whose
+    # alleles do not match those in ref
+    counts = result.SNP.value_counts()
+    dupsnps = counts.index[counts.values > 1]
+    for snp in dupsnps:
+        print('disambiguating duplicate snp', snp)
+        dropind = np.where(~match & (result.SNP == snp))[0]
+        result.drop(result.index[dropind], inplace=True)
+
     if signed:
         flip = match & a1234.apply(lambda y: y in FLIP_ALLELES)
         n_flip = flip.sum()
