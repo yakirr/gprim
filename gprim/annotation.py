@@ -53,7 +53,7 @@ def smart_merge(x, y=[], how='inner', fail_if_nonmatching=False, drop_from_y=[],
     matching = True
     for d in y:
         d.drop(drop_from_y, axis=1, inplace=True)
-        if len(x) != len(d) or (x[key] != d[key]).any():
+        if len(x) != len(d) or (x[key].values != d[key].values).any():
             matching = False
 
     x = x.reset_index(drop=True)
