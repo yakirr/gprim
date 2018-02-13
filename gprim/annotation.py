@@ -62,7 +62,7 @@ def smart_merge(x, y=[], how='inner', fail_if_nonmatching=False, drop_from_y=[],
                 axis=1)
     else:
         if fail_if_nonmatching:
-            print('smart_merge sees that the dataframs dont have same snps in same order')
+            print('smart_merge sees that the dataframes dont have same snps in same order')
             exit()
         else:
             for d in y:
@@ -106,7 +106,8 @@ def reconciled_to(ref, df, colnames, othercolnames=[], signed=True, missing_val=
     counts = result.SNP.value_counts()
     dupsnps = counts.index[counts.values > 1]
     for snp in dupsnps:
-        print('disambiguating duplicate snp', snp)
+        print('removing instances of duplicate snp', snp,
+            'where alleles do not match reference')
         dropind = np.where(~match & (result.SNP == snp))[0]
         result.drop(result.index[dropind], inplace=True)
 
@@ -125,9 +126,12 @@ def reconciled_to(ref, df, colnames, othercolnames=[], signed=True, missing_val=
 # will return the rows of bim_df corresponding to snps lying inside bed
 def bed_to_snps(bed, bim_df):
     from pybedtools import BedTool
+    print('creating bedtool')
     iter_bim = [['chr'+str(x1), x2, x2+1] for (x1, x2) in np.array(bim_df[['CHR', 'BP']])]
     bimbed = BedTool(iter_bim)
+    print('performing bedtools intersection')
     int_bed = bimbed.intersect(bed)
+    print('creating df and merging with refpanel')
     bp = [x.start for x in int_bed]
     df_int = pd.DataFrame({'BP': bp})
     return pd.merge(bim_df, df_int, how='inner', on='BP')
