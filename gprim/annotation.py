@@ -124,8 +124,16 @@ def reconciled_to(ref, df, colnames, othercolnames=[], signed=True, missing_val=
 # bed - a BedTool containing a set of genomic intervals
 # bim_df - a dataframe representing a plink bim file, potentially with extra columns
 # will return the rows of bim_df corresponding to snps lying inside bed
-def bed_to_snps(bed, bim_df):
+# mergebed option will merge overlapping intervals in bed file; if it's False
+#   and the bed file contains overlapping intervals, then snps in the returned
+#   dataframe will be duplicated in accordance with the number of distinct
+#   bed intervals they appear in. It it's True, each SNP will appear only once no matter
+#   even if it's contained in overlapping bed intervals
+def bed_to_snps(bed, bim_df, mergebed=False):
     from pybedtools import BedTool
+    if mergebed:
+        print('merging intervals in mask')
+        bed = bed.sort().merge()
     print('creating bedtool')
     iter_bim = [['chr'+str(x1), x2, x2+1] for (x1, x2) in np.array(bim_df[['CHR', 'BP']])]
     bimbed = BedTool(iter_bim)
