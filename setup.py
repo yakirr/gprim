@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='gprim',
-    version='0.21',
+    version='0.22',
     description='Utility functions for working with statistical genetic data',
     url='http://github.com/yakirr/ypy',
     author='Yakir Reshef',
