@@ -19,9 +19,11 @@ class Dataset(object):
     def path(self):
         return os.path.dirname(self.bfile_chr) + '/'
 
+    #TODO: investigate effect of changing count_A1 to True to conform with plink
+    #   standard (shouldn't change LD estimates)
     @memo.memoized
     def data(self, chrnum):
-        return Bed(self.bfile(chrnum))
+        return Bed(self.bfile(chrnum), count_A1=False)
     def stdX(self, chrnum, r):
         return self.stdX_it(chrnum, range(r[0],r[1]))
     def stdX_it(self, chrnum, it):
